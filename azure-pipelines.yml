@@ -19,7 +19,7 @@
 #  displayName: 'Run a multi-line script'
 
 trigger:
-- master
+- main
 
 jobs:
   - job: 'Validate'
