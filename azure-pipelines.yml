@@ -3,17 +3,38 @@
 # Add steps that build, run tests, deploy, and more:
 # https://aka.ms/yaml
 
+#trigger:
+#- main
+
+#pool:
+#  vmImage: ubuntu-latest
+
+#steps:
+#- script: echo Hello, world!
+#  displayName: 'Run a one-line script'
+
+#- script: |
+#    echo Add other tasks to build, test, and deploy your project.
+#    echo See https://aka.ms/yaml
+#  displayName: 'Run a multi-line script'
+
 trigger:
-- main
+- master
 
-pool:
-  vmImage: ubuntu-latest
-
-steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
-
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+jobs:
+  - job: 'Validate'
+    pool:
+      vmImage: 'Ubuntu-16.04'
+    steps:
+      - checkout: self
+      - task: UsePythonVersion@0
+        displayName: "Set Python Version"
+        inputs:
+          versionSpec: '3.7'
+          architecture: 'x64'
+      - script: pip install --upgrade pip
+        displayName: Upgrade pip
+      - script: pip install c7n c7n_azure c7n_gcp
+        displayName: Install custodian
+      - script: custodian validate policy.yml
+        displayName: Validate policy file
