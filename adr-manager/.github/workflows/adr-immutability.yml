@@ -1,0 +1,59 @@
+name: ADR immutability
+
+# Enforces the ADR immutability policy on every pull request and push to the
+# protected branches. Make this a *required status check* in the branch
+# protection settings (see docs/immutability/README.md) so accepted ADRs cannot
+# be silently rewritten and the manifest's append-only history cannot be tampered
+# with.
+
+on:
+    pull_request:
+        paths:
+            - "**/*.md"
+            - "**/.adr-manifest.json"
+            - "scripts/verify-adr-immutability.mjs"
+    push:
+        branches:
+            - main
+            - master
+
+jobs:
+    verify:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v4
+              with:
+                  # Need full history so the base ref is available for comparison.
+                  fetch-depth: 0
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Determine base ref
+              id: base
+              run: |
+                  if [ "${{ github.event_name }}" = "pull_request" ]; then
+                    echo "ref=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "ref=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+                  fi
+
+            - name: Verify ADR immutability
+              run: node scripts/verify-adr-immutability.mjs --base "${{ steps.base.outputs.ref }}"
+
+            - name: Verify commits are signed
+              if: github.event_name == 'pull_request'
+              run: |
+                  # Belt-and-braces check that every commit in the PR is GPG/SSH signed.
+                  # GitHub's "Require signed commits" branch protection is the primary
+                  # gate; this surfaces violations directly in the PR checks too.
+                  unsigned=$(git log --format='%H %G?' "origin/${{ github.base_ref }}..HEAD" | awk '$2 !~ /^(G|U)$/ {print $1}')
+                  if [ -n "$unsigned" ]; then
+                    echo "The following commits are not signed:"
+                    echo "$unsigned"
+                    exit 1
+                  fi
+                  echo "All commits are signed."
